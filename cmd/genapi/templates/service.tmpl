@@ -1,18 +1,18 @@
 package services
 
 import (
-    "{{ .Repo.Pkg }}"
+    "{{.Repo.Pkg}}"
 )
 
-type {{ .Name}} interface {
+type {{.Name}} interface {
 }
 
-func New{{.Name}}(repo repositories.{{ .Repo.Name }}) {{.Name}} {
+func New{{.Name}}(repo repositories.{{.Repo.Name}}) {{.Name}} {
     return &{{.ImpName}} {
-        {{ .Repo.ImpName }}: repo,
+        {{.Repo.ImpName}}: repo,
     }
 }
 
 type {{.ImpName}} struct {
-    {{ .Repo.ImpName }} repositories.{{.Repo.Name}}
+    {{.Repo.ImpName}} repositories.{{.Repo.Name}}
 }

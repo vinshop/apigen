@@ -4,16 +4,16 @@ import (
     "{{.Service.Pkg}}"
 )
 
-type {{ .Name }} interface {
+type {{.Name}} interface {
 
 }
 
-func New{{ .Name }}(service services.{{.Service.Name}}) {{ .Name}} {
+func New{{.Name}}(service services.{{.Service.Name}}) {{.Name}} {
 	return &{{.ImpName}}{
-		{{ .Service.ImpName }}: service,
+		{{.Service.ImpName}}: service,
 	}
 }
 
 type {{.ImpName}} struct {
-	{{ .Service.ImpName }} services.{{.Service.Name}}
+	{{.Service.ImpName}} services.{{.Service.Name}}
 }
