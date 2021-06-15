@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/vinshop/apigen/cmd/modelgen"
+	"github.com/vinshop/apigen/cmd/genapi"
 	"go.uber.org/zap"
 	"os"
 )
@@ -20,7 +20,7 @@ func init() {
 		},
 	}
 
-	rootCmd.AddCommand(modelgen.GenAPI)
+	rootCmd.AddCommand(genapi.GenAPI)
 }
 
 func Execute() {

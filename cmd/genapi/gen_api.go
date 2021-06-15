@@ -1,4 +1,4 @@
-package modelgen
+package genapi
 
 import (
 	"database/sql"
