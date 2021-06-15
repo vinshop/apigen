@@ -1,4 +1,4 @@
-package cmd
+package modelgen
 
 import (
 	"database/sql"
@@ -21,7 +21,7 @@ const (
 	outputFolderService = "services"
 )
 
-var genAPI = &cobra.Command{
+var GenAPI = &cobra.Command{
 	Use:   "api",
 	Short: "api",
 	Long:  ``,
@@ -86,7 +86,7 @@ func (g *Generator) processGenerate(args []string) {
 		}
 	}()
 
-	stmt, err := mysqlDB.Prepare("SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_KEY FROM COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME =?")
+	stmt, err := mysqlDB.Prepare("SELECT `COLUMN_NAME`, `DATA_TYPE`, `IS_NULLABLE`, `COLUMN_KEY` FROM `COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` =?")
 	if err != nil {
 		log.Println("Error when prepare query, detail: ", err)
 		return
@@ -178,6 +178,8 @@ func GetGoDataType(mysqlType, isNullable string) string {
 			return "*time.Time"
 		}
 		return "time.Time"
+	case "json":
+		return "map[string]interface{}"
 	default:
 		return ""
 	}
