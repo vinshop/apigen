@@ -6,9 +6,10 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/spf13/cobra"
+	"github.com/vinshop/apigen/cmd/genapi/models"
 	"go.uber.org/zap"
-	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -38,27 +39,11 @@ var GenAPI = &cobra.Command{
 
 			OutputFolder: outputFolder,
 		}
-		g.processGenerate(args)
+		if err := g.exec(); err != nil {
+			zap.S().Fatalw("Error", "error", err)
+		}
 		zap.S().Info("Stop command api")
 	},
-}
-
-type dbModel struct {
-	ModelName  string
-	TableName  string
-	Attributes []*dbModelAttribute
-
-	NeedImport     bool
-	NeedImportTime bool
-	NeedImportGorm bool
-}
-
-type dbModelAttribute struct {
-	FieldName    string
-	FieldType    string
-	ColumnName   string
-	IsPrimaryKey bool
-	IsNullable   bool
 }
 
 type Generator struct {
@@ -70,51 +55,57 @@ type Generator struct {
 	DBTable string
 
 	OutputFolder string
+
+	db *sql.DB
 }
 
-func (g *Generator) processGenerate(args []string) {
-	// example: user:pass@tcp(host:port)/database?param=value
+func (g *Generator) connect() {
 	dataSourceName := fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", g.DBUser, g.DBPass, g.DBHost, g.DBPort, schemaTable)
 	mysqlDB, err := sql.Open("mysql", dataSourceName)
 	if err != nil {
-		log.Fatal("Can not connect to mysql, detail: ", err)
-	}
-	defer func() {
-		err = mysqlDB.Close()
-		if err != nil {
-			zap.S().Error(err)
-		}
-	}()
-
-	stmt, err := mysqlDB.Prepare("SELECT `COLUMN_NAME`, `DATA_TYPE`, `IS_NULLABLE`, `COLUMN_KEY` FROM `COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` =?")
-	if err != nil {
-		log.Println("Error when prepare query, detail: ", err)
-		return
+		zap.S().Fatalw("Can not connect to mysql", "error", err)
 	}
 
-	rows, err := stmt.Query(g.DBName, g.DBTable)
-	if err != nil {
-		log.Println("Error when exec query, detail: ", err)
-		return
+	g.db = mysqlDB
+}
+
+func (g *Generator) close() {
+	if err := g.db.Close(); err != nil {
+		zap.S().Errorw("Error when close db connection", "error", err)
 	}
-	m := &dbModel{
+}
+
+func (g *Generator) inspect() (*models.DbModel, error) {
+	q, err := g.db.Prepare("SELECT `COLUMN_NAME`, `DATA_TYPE`, `IS_NULLABLE`, `COLUMN_KEY` FROM `COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` =?")
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := q.Query(g.DBName, g.DBTable)
+	if err != nil {
+		return nil, err
+	}
+
+	m := &models.DbModel{
 		ModelName:  GetCamelCase(g.DBTable),
 		TableName:  g.DBTable,
-		Attributes: make([]*dbModelAttribute, 0),
+		Attributes: make([]*models.DbModelAttribute, 0),
 	}
 
 	for rows.Next() {
 		var columnName, dataType, isNullable, columnKey string
 		err = rows.Scan(&columnName, &dataType, &isNullable, &columnKey)
 		if err != nil {
-			log.Println("Error when scan rows, detail: ", err)
-			return
+			zap.S().Errorw("Error when scan rows", "error", err)
+			return nil, err
 		}
-		attr := &dbModelAttribute{
+
+		attr := &models.DbModelAttribute{
 			FieldName:  GetCamelCase(columnName),
 			FieldType:  GetGoDataType(dataType, isNullable),
 			ColumnName: columnName,
 		}
+
 		if columnKey == "PRI" {
 			attr.IsPrimaryKey = true
 		}
@@ -127,35 +118,49 @@ func (g *Generator) processGenerate(args []string) {
 		}
 		m.Attributes = append(m.Attributes, attr)
 	}
-	err = g.generateModel(m)
+	return m, nil
+}
+
+func (g *Generator) exec() error {
+	g.connect()
+	m, err := g.inspect()
 	if err != nil {
-		zap.S().Error("Error when generateModel, detail: ", err)
+		return err
 	}
+	if err := g.generateModel(m); err != nil {
+		return err
+	}
+	return nil
 }
 
 //go:embed templates/model.tmpl
 var modelTemplateContent string
 
-func (g *Generator) generateModel(m *dbModel) error {
-	tmpl, err := template.New("test_model").Parse(modelTemplateContent)
+func (g *Generator) genFile(file string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(file), 0770); err != nil {
+		return nil, err
+	}
+	return os.Create(file)
+}
+
+func (g *Generator) generateModel(m *models.DbModel) error {
+	template, err := template.New("model").Parse(modelTemplateContent)
 	if err != nil {
 		return err
 	}
 
-	// open output file
-	fo, err := os.Create(fmt.Sprintf("./%v/%v/%v.go", g.OutputFolder, outputFolderModel, g.DBTable))
+	fo, err := g.genFile(fmt.Sprintf("%v/%v/%v.go", g.OutputFolder, outputFolderModel, g.DBTable))
 	if err != nil {
 		return err
 	}
-	// close fo on exit and check for its returned error
+
 	defer func() {
 		if err := fo.Close(); err != nil {
-			zap.S().Error("Error when exec query, detail: ", err)
-			return
+			zap.S().Error("Error close file", "error", err)
 		}
 	}()
 
-	err = tmpl.Execute(fo, m)
+	err = template.Execute(fo, m)
 	if err != nil {
 		return err
 	}
@@ -172,7 +177,7 @@ func GetGoDataType(mysqlType, isNullable string) string {
 	case "tinyint":
 		return "bool"
 	case "decimal":
-		return "double"
+		return "float64"
 	case "date", "datetime":
 		if isNullable == "YES" {
 			return "*time.Time"
@@ -181,7 +186,7 @@ func GetGoDataType(mysqlType, isNullable string) string {
 	case "json":
 		return "map[string]interface{}"
 	default:
-		return ""
+		return "interface{}"
 	}
 }
 
