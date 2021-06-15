@@ -89,16 +89,16 @@ func (g *Generator) exec() error {
 	if err := g.generateTemplate(modelTemplate, modelDir, model); err != nil {
 		return err
 	}
-	repo := model.ToDbRepo()
+	repo := model.Repo()
 
 	if err := g.generateTemplate(repoTemplate, repoDir, repo); err != nil {
 		return err
 	}
-	service := repo.ToService()
+	service := repo.Service()
 	if err := g.generateTemplate(serviceTemplate, serviceDir, service); err != nil {
 		return err
 	}
-	controller := service.ToController()
+	controller := service.Controller()
 	if err := g.generateTemplate(controllerTemplate, controllerDir, controller); err != nil {
 		return err
 	}
