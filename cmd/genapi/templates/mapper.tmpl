@@ -1,0 +1,21 @@
+package mappers
+
+import (
+    "{{.Model.Pkg}}"
+    "{{.DTO.Pkg}}"
+)
+
+type {{.Name}} struct {
+
+}
+
+func (m {{.Name}}) ToDTO(model *models.{{.Model.Name}}) dtos.{{.DTO.Name}} {
+    return dtos.{{.DTO.Name}}{
+        {{range .Model.Fields}}{{.Name}}: model.{{.Name}},
+        {{end}}
+    }
+}
+
+func (m {{.Name}}) ToModel(item dtos.{{.DTO.Name}}) *models.{{.Model.Name}} {
+    return nil
+}

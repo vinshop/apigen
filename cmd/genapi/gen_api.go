@@ -24,6 +24,8 @@ const (
 	repoDir       = "repositories"
 	serviceDir    = "services"
 	controllerDir = "controllers"
+	dtoDir        = "dtos"
+	mapperDir     = "mappers"
 )
 
 //go:embed templates/model.tmpl
@@ -37,6 +39,12 @@ var serviceTemplate string
 
 //go:embed templates/controller.tmpl
 var controllerTemplate string
+
+//go:embed templates/dto.tmpl
+var dtoTemplate string
+
+//go:embed templates/mapper.tmpl
+var mapperTemplate string
 
 var GenAPI = &cobra.Command{
 	Use:   "api",
@@ -89,21 +97,32 @@ func (g *Generator) exec() error {
 	if err := g.generateTemplate(modelTemplate, modelDir, model); err != nil {
 		return err
 	}
-	repo := model.Repo()
 
+	repo := model.Repo()
 	if err := g.generateTemplate(repoTemplate, repoDir, repo); err != nil {
 		return err
 	}
+
 	service := repo.Service()
 	if err := g.generateTemplate(serviceTemplate, serviceDir, service); err != nil {
 		return err
 	}
+
 	controller := service.Controller()
 	if err := g.generateTemplate(controllerTemplate, controllerDir, controller); err != nil {
 		return err
 	}
-	g.format()
 
+	dto := model.DTO()
+	if err := g.generateTemplate(dtoTemplate, dtoDir, dto); err != nil {
+		return err
+	}
+	mapper := models.NewMapper(model, dto)
+	if err := g.generateTemplate(mapperTemplate, mapperDir, mapper); err != nil {
+		return err
+	}
+
+	g.format()
 	return nil
 }
 
@@ -141,7 +160,7 @@ func (g *Generator) inspect() (*models.Model, error) {
 		Module: g.module,
 		Name:   util.ToSingular(GetCamelCase(g.DBTable)),
 		Table:  g.DBTable,
-		Fields: make([]*models.Field, 0),
+		Fields: make([]*models.ModelField, 0),
 	}
 
 	for rows.Next() {
@@ -152,7 +171,7 @@ func (g *Generator) inspect() (*models.Model, error) {
 			return nil, err
 		}
 
-		attr := &models.Field{
+		attr := &models.ModelField{
 			Name:       GetCamelCase(columnName),
 			Type:       GetGoDataType(dataType, isNullable),
 			ColumnName: columnName,
@@ -241,8 +260,8 @@ func (g *Generator) generateTemplate(layout, folder string, data interface{}) er
 }
 
 func (g *Generator) format() {
-	cmd := exec.Command("gofmt","-w", g.OutputFolder)
-	zap.S().Infow("cmd", "cmd",cmd.String())
+	cmd := exec.Command("gofmt", "-w", g.OutputFolder)
+	zap.S().Infow("cmd", "cmd", cmd.String())
 	if err := cmd.Run(); err != nil {
 		zap.S().Warnw("Error when format output", "error", err)
 	}

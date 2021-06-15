@@ -1,4 +1,4 @@
-package models
+package dtos
 {{if .NeedImport}}
 import (
 	{{if .NeedImportTime}}"time"{{end}}
@@ -6,11 +6,6 @@ import (
 {{end}}
 
 type {{.Name}} struct {
-    {{range .Fields}}{{.Name}} {{.Type}} `gorm:"column:{{.ColumnName}}{{if .IsPrimaryKey}};primary_key{{end}}"`
+    {{range .Fields}}{{.Name}} {{.Type}} `json:"{{.ColumnName}}"`
     {{end}}
-}
-
-// TableName overrides the table name
-func ({{.Name}}) TableName() string {
-	return "{{.Table}}"
 }
