@@ -1,0 +1,16 @@
+package models
+{{if .NeedImport}}
+import (
+	{{if .NeedImportTime}}"time"{{end}}
+)
+{{end}}
+
+type {{ .ModelName}} struct {
+    {{range .Attributes}}{{ .FieldName}} {{ .FieldType}} `gorm:"column:{{ .ColumnName}}{{if .IsPrimaryKey}};primary_key{{end}}"`
+    {{end}}
+}
+
+// TableName overrides the table name
+func ({{ .ModelName}}) TableName() string {
+	return "{{.TableName}}"
+}
