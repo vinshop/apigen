@@ -3,12 +3,15 @@ package genapi
 import (
 	"database/sql"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/spf13/cobra"
 	"github.com/vinshop/apigen/cmd/genapi/models"
+	"github.com/vinshop/apigen/pkg/util"
 	"go.uber.org/zap"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -17,10 +20,23 @@ import (
 const (
 	schemaTable = "information_schema"
 
-	outputFolderModel   = "models"
-	outputFolderRepo    = "repositories"
-	outputFolderService = "services"
+	modelDir      = "models"
+	repoDir       = "repositories"
+	serviceDir    = "services"
+	controllerDir = "controllers"
 )
+
+//go:embed templates/model.tmpl
+var modelTemplate string
+
+//go:embed templates/repo.tmpl
+var repoTemplate string
+
+//go:embed templates/service.tmpl
+var serviceTemplate string
+
+//go:embed templates/controller.tmpl
+var controllerTemplate string
 
 var GenAPI = &cobra.Command{
 	Use:   "api",
@@ -56,7 +72,38 @@ type Generator struct {
 
 	OutputFolder string
 
-	db *sql.DB
+	module string
+	db     *sql.DB
+}
+
+func (g *Generator) exec() error {
+	if err := g.getModulePath(); err != nil {
+		return err
+	}
+
+	g.connect()
+	m, err := g.inspect()
+	if err != nil {
+		return err
+	}
+	if err := g.generateTemplate(modelTemplate, modelDir, m); err != nil {
+		return err
+	}
+	repo := m.ToDbRepo()
+
+	if err := g.generateTemplate(repoTemplate, repoDir, repo); err != nil {
+		return err
+	}
+	service := repo.ToService()
+	if err := g.generateTemplate(serviceTemplate, serviceDir, service); err != nil {
+		return err
+	}
+	controller := service.ToController()
+	if err := g.generateTemplate(controllerTemplate, controllerDir, controller); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (g *Generator) connect() {
@@ -75,7 +122,7 @@ func (g *Generator) close() {
 	}
 }
 
-func (g *Generator) inspect() (*models.DbModel, error) {
+func (g *Generator) inspect() (*models.Model, error) {
 	q, err := g.db.Prepare("SELECT `COLUMN_NAME`, `DATA_TYPE`, `IS_NULLABLE`, `COLUMN_KEY` FROM `COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` =?")
 	if err != nil {
 		return nil, err
@@ -86,10 +133,12 @@ func (g *Generator) inspect() (*models.DbModel, error) {
 		return nil, err
 	}
 
-	m := &models.DbModel{
-		ModelName:  GetCamelCase(g.DBTable),
-		TableName:  g.DBTable,
-		Attributes: make([]*models.DbModelAttribute, 0),
+	m := &models.Model{
+		Pkg:    g.module + "/models",
+		Module: g.module,
+		Name:   util.ToSingular(GetCamelCase(g.DBTable)),
+		Table:  g.DBTable,
+		Fields: make([]*models.Field, 0),
 	}
 
 	for rows.Next() {
@@ -100,9 +149,9 @@ func (g *Generator) inspect() (*models.DbModel, error) {
 			return nil, err
 		}
 
-		attr := &models.DbModelAttribute{
-			FieldName:  GetCamelCase(columnName),
-			FieldType:  GetGoDataType(dataType, isNullable),
+		attr := &models.Field{
+			Name:       GetCamelCase(columnName),
+			Type:       GetGoDataType(dataType, isNullable),
 			ColumnName: columnName,
 		}
 
@@ -112,44 +161,58 @@ func (g *Generator) inspect() (*models.DbModel, error) {
 		if isNullable == "YES" {
 			attr.IsNullable = true
 		}
-		if attr.FieldType == "time.Time" || attr.FieldType == "*time.Time" {
+		if attr.Type == "time.Time" || attr.Type == "*time.Time" {
 			m.NeedImport = true
 			m.NeedImportTime = true
 		}
-		m.Attributes = append(m.Attributes, attr)
+		m.Fields = append(m.Fields, attr)
 	}
 	return m, nil
 }
 
-func (g *Generator) exec() error {
-	g.connect()
-	m, err := g.inspect()
-	if err != nil {
-		return err
-	}
-	if err := g.generateModel(m); err != nil {
-		return err
-	}
-	return nil
-}
-
-//go:embed templates/model.tmpl
-var modelTemplateContent string
-
-func (g *Generator) genFile(file string) (*os.File, error) {
+func (g *Generator) createFile(file string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(file), 0770); err != nil {
 		return nil, err
 	}
 	return os.Create(file)
 }
 
-func (g *Generator) generateModel(m *models.DbModel) error {
-	template, err := template.New("model").Parse(modelTemplateContent)
+func (g *Generator) getModulePath() error {
+	cmd := exec.Command("bash", "-c", "go mod edit -json > gomod.json")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	defer exec.Command("bash", "-c", "rm -f gomod.json").Run()
+
+	f, err := os.Open("gomod.json")
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
-	fo, err := g.genFile(fmt.Sprintf("%v/%v/%v.go", g.OutputFolder, outputFolderModel, g.DBTable))
+	var mod struct {
+		Module struct {
+			Path string
+		}
+	}
+
+	if err := json.NewDecoder(f).Decode(&mod); err != nil {
+		return err
+	}
+
+	g.module = mod.Module.Path
+	if g.OutputFolder != "." {
+		g.module += "/" + g.OutputFolder
+	}
+	return nil
+}
+
+func (g *Generator) generateTemplate(layout, folder string, data interface{}) error {
+	tmpl, err := template.New("tmpl").Parse(layout)
+	if err != nil {
+		return err
+	}
+	fo, err := g.createFile(fmt.Sprintf("%v/%v/%v.go", g.OutputFolder, folder, g.DBTable))
 	if err != nil {
 		return err
 	}
@@ -160,11 +223,10 @@ func (g *Generator) generateModel(m *models.DbModel) error {
 		}
 	}()
 
-	err = template.Execute(fo, m)
+	err = tmpl.Execute(fo, data)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 

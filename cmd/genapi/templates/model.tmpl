@@ -5,12 +5,12 @@ import (
 )
 {{end}}
 
-type {{ .ModelName}} struct {
-    {{range .Attributes}}{{ .FieldName}} {{ .FieldType}} `gorm:"column:{{ .ColumnName}}{{if .IsPrimaryKey}};primary_key{{end}}"`
+type {{ .Name}} struct {
+    {{range .Fields}}{{ .Name}} {{ .Type}} `gorm:"column:{{ .ColumnName}}{{if .IsPrimaryKey}};primary_key{{end}}"`
     {{end}}
 }
 
 // TableName overrides the table name
-func ({{ .ModelName}}) TableName() string {
-	return "{{.TableName}}"
+func ({{ .Name}}) TableName() string {
+	return "{{.Table}}"
 }

@@ -1,0 +1,18 @@
+package services
+
+import (
+    "{{ .Repo.Pkg }}"
+)
+
+type {{ .Name}} interface {
+}
+
+func New{{.Name}}(repo repositories.{{ .Repo.Name }}) {{.Name}} {
+    return &{{.ImpName}} {
+        {{ .Repo.ImpName }}: repo,
+    }
+}
+
+type {{.ImpName}} struct {
+    {{ .Repo.ImpName }} repositories.{{.Repo.Name}}
+}

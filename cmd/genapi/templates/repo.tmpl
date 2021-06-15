@@ -1,0 +1,25 @@
+package repositories
+
+import (
+    "github.com/jinzhu/gorm"
+    "{{ .Model.Pkg }}"
+)
+
+type {{ .Name }} interface {
+    FindOne(*models.{{ .Model.Name }}, ...string) error
+
+}
+
+func New{{ .Name }}(db *gorm.DB) {{ .Name }} {
+    return &{{ .ImpName }} {
+        db: db,
+    }
+}
+
+type {{ .ImpName }} struct {
+    db *gorm.DB
+}
+
+func (r {{.ImpName}}) FindOne(model *models.{{ .Model.Name }}, preloads ...string) error {
+    return nil
+}
