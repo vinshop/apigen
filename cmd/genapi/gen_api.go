@@ -275,7 +275,7 @@ func (g *Generator) format() {
 
 func GetGoDataType(mysqlType, isNullable string) string {
 	switch mysqlType {
-	case "varchar", "longtext", "text":
+	case "varchar", "longtext", "text", "json":
 		return "string"
 	case "smallint", "int", "bigint", "timestamp":
 		return "int64"
@@ -288,8 +288,6 @@ func GetGoDataType(mysqlType, isNullable string) string {
 			return "*time.Time"
 		}
 		return "time.Time"
-	case "json":
-		return "map[string]interface{}"
 	default:
 		return "interface{}"
 	}
