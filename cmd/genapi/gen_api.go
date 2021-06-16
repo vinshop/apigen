@@ -19,13 +19,6 @@ import (
 
 const (
 	schemaTable = "information_schema"
-
-	modelDir      = "models"
-	repoDir       = "repositories"
-	serviceDir    = "services"
-	controllerDir = "controllers"
-	dtoDir        = "dtos"
-	mapperDir     = "mappers"
 )
 
 //go:embed templates/model.tmpl
@@ -47,21 +40,27 @@ var dtoTemplate string
 var mapperTemplate string
 
 var GenAPI = &cobra.Command{
-	Use:   "api",
-	Short: "api",
+	Use:   "gen",
+	Short: "Generate golang api structure",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		zap.S().Info("Start command api")
 
 		g := &Generator{
-			DBUser:  dbUser,
-			DBPass:  dbPass,
-			DBHost:  dbHost,
-			DBPort:  dbPort,
-			DBName:  dbName,
-			DBTable: dbTable,
-
+			DBUser:       dbUser,
+			DBPass:       dbPass,
+			DBHost:       dbHost,
+			DBPort:       dbPort,
+			DBName:       dbName,
+			DBTable:      dbTable,
 			OutputFolder: outputFolder,
+
+			ModelFolder:      modelFolder,
+			RepoFolder:       repoFolder,
+			ServiceFolder:    serviceFolder,
+			ControllerFolder: controllerFolder,
+			DTOFolder:        dtoFolder,
+			MapperFolder:     mapperFolder,
 		}
 		if err := g.exec(); err != nil {
 			zap.S().Fatalw("Error", "error", err)
@@ -78,7 +77,13 @@ type Generator struct {
 	DBName  string
 	DBTable string
 
-	OutputFolder string
+	OutputFolder     string
+	ModelFolder      string
+	RepoFolder       string
+	ServiceFolder    string
+	ControllerFolder string
+	DTOFolder        string
+	MapperFolder     string
 
 	module string
 	db     *sql.DB
@@ -94,31 +99,35 @@ func (g *Generator) exec() error {
 	if err != nil {
 		return err
 	}
-	if err := g.generateTemplate(modelTemplate, modelDir, model); err != nil {
+
+	fileName := util.ToSingular(g.DBTable)
+
+	if err := g.generateTemplate(modelTemplate, g.ModelFolder, fileName, model); err != nil {
 		return err
 	}
 
 	repo := model.Repo()
-	if err := g.generateTemplate(repoTemplate, repoDir, repo); err != nil {
+	if err := g.generateTemplate(repoTemplate, g.RepoFolder, fileName, repo); err != nil {
 		return err
 	}
 
 	service := repo.Service()
-	if err := g.generateTemplate(serviceTemplate, serviceDir, service); err != nil {
+	if err := g.generateTemplate(serviceTemplate, g.ServiceFolder, fileName, service); err != nil {
 		return err
 	}
 
 	controller := service.Controller()
-	if err := g.generateTemplate(controllerTemplate, controllerDir, controller); err != nil {
+	if err := g.generateTemplate(controllerTemplate, g.ControllerFolder, fileName+"_controller", controller); err != nil {
 		return err
 	}
 
 	dto := model.DTO()
-	if err := g.generateTemplate(dtoTemplate, dtoDir, dto); err != nil {
+	if err := g.generateTemplate(dtoTemplate, g.DTOFolder, fileName, dto); err != nil {
 		return err
 	}
+
 	mapper := models.NewMapper(model, dto)
-	if err := g.generateTemplate(mapperTemplate, mapperDir, mapper); err != nil {
+	if err := g.generateTemplate(mapperTemplate, g.MapperFolder, fileName, mapper); err != nil {
 		return err
 	}
 
@@ -239,13 +248,13 @@ func (g *Generator) getModulePath() error {
 	return nil
 }
 
-func (g *Generator) generateTemplate(layout, folder string, data interface{}) error {
+func (g *Generator) generateTemplate(layout, folder, fileName string, data interface{}) error {
 	tmpl, err := template.New("tmpl").Parse(layout)
 	if err != nil {
 		zap.S().Errorw("Error when parse layout", "folder", folder, "error", err)
 		return err
 	}
-	fo, err := g.createFile(fmt.Sprintf("%v/%v/%v.go", g.OutputFolder, folder, g.DBTable))
+	fo, err := g.createFile(fmt.Sprintf("%v/%v/%v.go", g.OutputFolder, folder, fileName))
 	if err != nil {
 		zap.S().Errorw("Error when create file", "output", g.OutputFolder, "folder", folder, "table", g.DBTable, "error", err)
 		return err
