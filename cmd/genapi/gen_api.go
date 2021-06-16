@@ -161,6 +161,7 @@ func (g *Generator) inspect() (*models.Model, error) {
 		Name:   util.ToSingular(GetCamelCase(g.DBTable)),
 		Table:  g.DBTable,
 		Fields: make([]*models.ModelField, 0),
+		Import: make(map[string]bool),
 	}
 
 	for rows.Next() {
@@ -176,6 +177,7 @@ func (g *Generator) inspect() (*models.Model, error) {
 			Type:       GetGoDataType(dataType, isNullable),
 			ColumnName: columnName,
 		}
+		attr.NameLower = util.LowerTitle(attr.Name)
 
 		if columnKey == "PRI" {
 			attr.IsPrimaryKey = true
@@ -183,9 +185,13 @@ func (g *Generator) inspect() (*models.Model, error) {
 		if isNullable == "YES" {
 			attr.IsNullable = true
 		}
+
+		if strings.HasPrefix(attr.Type, "*") {
+			attr.IsPointer = true
+		}
+
 		if attr.Type == "time.Time" || attr.Type == "*time.Time" {
-			m.NeedImport = true
-			m.NeedImportTime = true
+			m.Import["time"] = true
 		}
 		m.Fields = append(m.Fields, attr)
 	}

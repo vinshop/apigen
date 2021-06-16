@@ -1,35 +1,49 @@
 package models
 
 import (
+	"fmt"
 	"github.com/vinshop/apigen/pkg/util"
 )
 
 type ModelField struct {
 	Name         string
+	NameLower    string
 	Type         string
 	ColumnName   string
 	IsPrimaryKey bool
 	IsNullable   bool
+	IsPointer    bool
+	DType        string
 }
 
 func (f *ModelField) DTOField() *DTOField {
 
 	var t string
 
+	var mType = "model." + f.Name
+	var dType = "dto." + f.Name
 	switch f.Type {
 	case "time.Time":
 		t = "int64"
+		mType = "model." + f.Name + ".Unix()"
+		dType = fmt.Sprintf("time.Unix(dto.%v,0)", f.Name)
 	case "*time.Time":
 		t = "*int64"
+		mType = "model." + f.Name + ".Unix()"
+		dType = fmt.Sprintf("time.Unix(*dto.%v,0)", f.Name)
 	default:
 		t = f.Type
 	}
 
+	f.DType = dType
 	return &DTOField{
 		Name:       f.Name,
+		NameLower:  util.LowerTitle(f.Name),
 		Type:       t,
 		ColumnName: f.ColumnName,
 		IsNullable: f.IsNullable,
+		IsPointer:  f.IsPointer,
+		MType:      mType,
 	}
 }
 
@@ -40,9 +54,9 @@ type Model struct {
 	Table  string
 	Fields []*ModelField
 
-	NeedImport     bool
-	NeedImportTime bool
 	NeedImportGorm bool
+
+	Import map[string]bool
 }
 
 func (m *Model) Repo() *Repo {
@@ -63,13 +77,11 @@ func (m *Model) DTO() *DTO {
 	}
 
 	return &DTO{
-		Pkg:            m.Module + "/dtos",
-		Module:         m.Module,
-		Name:           m.Name,
-		Table:          m.Table,
-		Fields:         fields,
-		NeedImport:     m.NeedImport,
-		NeedImportTime: m.NeedImportTime,
-		NeedImportGorm: m.NeedImportGorm,
+		Pkg:    m.Module + "/dtos",
+		Module: m.Module,
+		Name:   m.Name,
+		Table:  m.Table,
+		Fields: fields,
+		Import: m.Import,
 	}
 }

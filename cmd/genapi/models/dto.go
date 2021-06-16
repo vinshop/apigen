@@ -1,10 +1,15 @@
 package models
 
 type DTOField struct {
-	Name         string
-	Type         string
-	ColumnName   string
-	IsNullable   bool
+	Name       string
+	NameLower  string
+	Type       string
+	ColumnName string
+	IsNullable bool
+	Cast       string
+	FuncCall   string
+	IsPointer  bool
+	MType      string
 }
 
 type DTO struct {
@@ -13,8 +18,5 @@ type DTO struct {
 	Name   string
 	Table  string
 	Fields []*DTOField
-
-	NeedImport     bool
-	NeedImportTime bool
-	NeedImportGorm bool
+	Import map[string]bool
 }

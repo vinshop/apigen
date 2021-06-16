@@ -1,21 +1,41 @@
 package mappers
 
+{{if .Import}}
 import (
-    "{{.Model.Pkg}}"
-    "{{.DTO.Pkg}}"
+    {{range $import, $v := .Import }}"{{$import}}"
+    {{end}}
 )
+{{end}}
 
 type {{.Name}} struct {
 
 }
 
 func (m {{.Name}}) ToDTO(model *models.{{.Model.Name}}) dtos.{{.DTO.Name}} {
+
+    {{range .DTO.Fields}}{{if .IsPointer}} var {{.NameLower}} {{.Type}}
+    if model.{{.Name}} != nil {
+        v := {{.MType}}
+        {{.NameLower}} = &v
+    }
+    {{end}}{{end}}
+
     return dtos.{{.DTO.Name}}{
-        {{range .Model.Fields}}{{.Name}}: model.{{.Name}},
+        {{range .DTO.Fields}}{{.Name}}: {{if .IsPointer}}{{.NameLower}}{{else}}{{.MType}}{{end}},
         {{end}}
     }
 }
 
-func (m {{.Name}}) ToModel(item dtos.{{.DTO.Name}}) *models.{{.Model.Name}} {
-    return nil
+func (m {{.Name}}) ToModel(dto dtos.{{.DTO.Name}}) *models.{{.Model.Name}} {
+    {{range .Model.Fields}}{{if .IsPointer}} var {{.NameLower}} {{.Type}}
+        if dto.{{.Name}} != nil {
+            v := {{.DType}}
+            {{.NameLower}} = &v
+        }
+        {{end}}{{end}}
+
+        return &models.{{.Model.Name}}{
+            {{range .Model.Fields}}{{.Name}}: {{if .IsPointer}}{{.NameLower}}{{else}}{{.DType}}{{end}},
+            {{end}}
+        }
 }

@@ -1,7 +1,8 @@
 package dtos
-{{if .NeedImport}}
+{{if .Import}}
 import (
-	{{if .NeedImportTime}}"time"{{end}}
+    {{range $import, $v := .Import }}"{{$import}}"
+    {{end}}
 )
 {{end}}
 
