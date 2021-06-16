@@ -8,8 +8,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/spf13/cobra"
 	"github.com/vinshop/apigen/cmd/genapi/models"
+	"github.com/vinshop/apigen/pkg/logger"
 	"github.com/vinshop/apigen/pkg/util"
-	"go.uber.org/zap"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,8 +44,7 @@ var GenAPI = &cobra.Command{
 	Short: "Generate golang api structure",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		zap.S().Info("Start command api")
-
+		logger.Info("Start command api")
 		g := &Generator{
 			DBUser:       dbUser,
 			DBPass:       dbPass,
@@ -63,9 +62,10 @@ var GenAPI = &cobra.Command{
 			MapperFolder:     mapperFolder,
 		}
 		if err := g.exec(); err != nil {
-			zap.S().Fatalw("Error", "error", err)
+			logger.Fatalw("Error", "error", err)
 		}
-		zap.S().Info("Stop command api")
+		logger.Info("Stop command api")
+		fmt.Println("Generate successfully")
 	},
 }
 
@@ -139,7 +139,8 @@ func (g *Generator) connect() {
 	dataSourceName := fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", g.DBUser, g.DBPass, g.DBHost, g.DBPort, schemaTable)
 	mysqlDB, err := sql.Open("mysql", dataSourceName)
 	if err != nil {
-		zap.S().Fatalw("Can not connect to mysql", "error", err)
+		fmt.Println("Could not connect to mysql server")
+		panic(err)
 	}
 
 	g.db = mysqlDB
@@ -147,20 +148,22 @@ func (g *Generator) connect() {
 
 func (g *Generator) close() {
 	if err := g.db.Close(); err != nil {
-		zap.S().Errorw("Error when close db connection", "error", err)
+		logger.Errorw("Error when close db connection", "error", err)
 	}
 }
 
 func (g *Generator) inspect() (*models.Model, error) {
 	q, err := g.db.Prepare("SELECT `COLUMN_NAME`, `DATA_TYPE`, `IS_NULLABLE`, `COLUMN_KEY` FROM `COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` =?")
 	if err != nil {
-		zap.S().Errorw("Error when create prepare statement", "error", err)
+		fmt.Println("Error when get table info, maybe it's sql syntax")
+		logger.Errorw("Error when create prepare statement", "error", err)
 		return nil, err
 	}
 
 	rows, err := q.Query(g.DBName, g.DBTable)
 	if err != nil {
-		zap.S().Errorw("Error when exec query", "error", err)
+		fmt.Println("Error when exec query to get table info")
+		logger.Errorw("Error when exec query", "error", err)
 		return nil, err
 	}
 
@@ -172,12 +175,14 @@ func (g *Generator) inspect() (*models.Model, error) {
 		Fields: make([]*models.ModelField, 0),
 		Import: make(map[string]bool),
 	}
-
+	ok := false
 	for rows.Next() {
+		ok = true
 		var columnName, dataType, isNullable, columnKey string
 		err = rows.Scan(&columnName, &dataType, &isNullable, &columnKey)
 		if err != nil {
-			zap.S().Errorw("Error when scan rows", "error", err)
+			fmt.Println("Error when scan table info")
+			logger.Errorw("Error when scan rows", "error", err)
 			return nil, err
 		}
 
@@ -204,12 +209,17 @@ func (g *Generator) inspect() (*models.Model, error) {
 		}
 		m.Fields = append(m.Fields, attr)
 	}
+	if !ok {
+		fmt.Println("Error, please make sure table", g.DBTable, "exists")
+		return nil, fmt.Errorf("table not exist")
+	}
 	return m, nil
 }
 
 func (g *Generator) createFile(file string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(file), 0770); err != nil {
-		zap.S().Errorw("Error when create file", "error", err, "file", file)
+		fmt.Println("Error when create file ", file)
+		logger.Errorw("Error when create file", "error", err, "file", file)
 		return nil, err
 	}
 	return os.Create(file)
@@ -218,14 +228,16 @@ func (g *Generator) createFile(file string) (*os.File, error) {
 func (g *Generator) getModulePath() error {
 	cmd := exec.Command("bash", "-c", "go mod edit -json > gomod.json")
 	if err := cmd.Run(); err != nil {
-		zap.S().Errorw("Error when exec command", "error", err)
+		fmt.Println("Error, please make sure that go.mod exists")
+		logger.Errorw("Error when exec command", "error", err)
 		return err
 	}
 	defer exec.Command("bash", "-c", "rm -f gomod.json").Run()
 
 	f, err := os.Open("gomod.json")
 	if err != nil {
-		zap.S().Errorw("Error when open gomod.json", "error", err)
+		fmt.Println("Error when open gomod.json")
+		logger.Errorw("Error when open gomod.json", "error", err)
 		return err
 	}
 	defer f.Close()
@@ -237,7 +249,8 @@ func (g *Generator) getModulePath() error {
 	}
 
 	if err := json.NewDecoder(f).Decode(&mod); err != nil {
-		zap.S().Errorw("Error when decode gomod.json", "error", err)
+		fmt.Println("Error when parse gomod.json")
+		logger.Errorw("Error when decode gomod.json", "error", err)
 		return err
 	}
 
@@ -251,24 +264,28 @@ func (g *Generator) getModulePath() error {
 func (g *Generator) generateTemplate(layout, folder, fileName string, data interface{}) error {
 	tmpl, err := template.New("tmpl").Parse(layout)
 	if err != nil {
-		zap.S().Errorw("Error when parse layout", "folder", folder, "error", err)
+		fmt.Println("Error when parse layout for ", folder)
+		logger.Errorw("Error when parse layout", "folder", folder, "error", err)
 		return err
 	}
-	fo, err := g.createFile(fmt.Sprintf("%v/%v/%v.go", g.OutputFolder, folder, fileName))
+	file := fmt.Sprintf("%v/%v/%v.go", g.OutputFolder, folder, fileName)
+	fo, err := g.createFile(file)
 	if err != nil {
-		zap.S().Errorw("Error when create file", "output", g.OutputFolder, "folder", folder, "table", g.DBTable, "error", err)
+		fmt.Println("Error when create file ", file)
+		logger.Errorw("Error when create file", "output", g.OutputFolder, "folder", folder, "table", g.DBTable, "error", err)
 		return err
 	}
 
 	defer func() {
 		if err := fo.Close(); err != nil {
-			zap.S().Error("Error close file", "error", err)
+			logger.Error("Error close file", "error", err)
 		}
 	}()
 
 	err = tmpl.Execute(fo, data)
 	if err != nil {
-		zap.S().Errorw("Error when exec template", "error", err)
+		fmt.Println("Error when exec template")
+		logger.Errorw("Error when exec template", "error", err)
 		return err
 	}
 	return nil
@@ -276,9 +293,9 @@ func (g *Generator) generateTemplate(layout, folder, fileName string, data inter
 
 func (g *Generator) format() {
 	cmd := exec.Command("gofmt", "-w", g.OutputFolder)
-	zap.S().Infow("cmd", "cmd", cmd.String())
+	logger.Infow("cmd", "cmd", cmd.String())
 	if err := cmd.Run(); err != nil {
-		zap.S().Warnw("Error when format output", "error", err)
+		logger.Warnw("Error when format output", "error", err)
 	}
 }
 
