@@ -1,0 +1,19 @@
+package controllers
+
+import (
+    "{{.Service.Pkg}}"
+)
+
+type {{.Name}} interface {
+
+}
+
+func New{{.Name}}(service services.{{.Service.Name}}) {{.Name}} {
+	return &{{.ImpName}}{
+		{{.Service.ImpName}}: service,
+	}
+}
+
+type {{.ImpName}} struct {
+	{{.Service.ImpName}} services.{{.Service.Name}}
+}

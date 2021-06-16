@@ -1,0 +1,12 @@
+package dtos
+{{if .Import}}
+import (
+    {{range $import, $v := .Import }}"{{$import}}"
+    {{end}}
+)
+{{end}}
+
+type {{.Name}} struct {
+    {{range .Fields}}{{.Name}} {{.Type}} `json:"{{.ColumnName}}"`
+    {{end}}
+}
