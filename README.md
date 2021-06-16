@@ -5,7 +5,7 @@
 ### Generate API structure for table from Database
 #### Install
 `
-go install github.com/vinshop/apigen@main
+go install github.com/vinshop/apigen@v1.0
 `
 #### Usage
 ```
