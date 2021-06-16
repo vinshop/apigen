@@ -24,7 +24,7 @@ func init() {
 	flag.StringVarP(&dbPass, "pass", "", "secret", "db pass")
 	flag.StringVarP(&dbName, "db", "", "db_name", "db name")
 	flag.StringVarP(&dbTable, "table", "", "table_name", "db name")
-	flag.StringVarP(&outputFolder, "out", "", "output", "output folder")
+	flag.StringVarP(&outputFolder, "out", "", "output", `output folder, if you want to generate to current project please use "."`)
 
 	flag.StringVarP(&modelFolder, "model", "", "models", "models folder")
 	flag.StringVarP(&dtoFolder, "dto", "", "dtos", "dtos folder")
