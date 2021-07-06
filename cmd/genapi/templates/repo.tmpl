@@ -43,6 +43,9 @@ func (r *{{.ImpName}}) preloads(db *gorm.DB, preloads ...string) *gorm.DB {
 }
 
 func (r *{{.ImpName}}) FindOne(ctx context.Context, model *models.{{.Model.Name}}, preloads ...string) error {
+    if model.ID == 0 {
+		return gorm.ErrRecordNotFound
+	}
     return r.preloads(r.getDB(ctx), preloads...).First(model).Error
 }
 
