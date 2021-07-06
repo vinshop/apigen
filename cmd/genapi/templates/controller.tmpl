@@ -2,18 +2,25 @@ package controllers
 
 import (
     "{{.Service.Pkg}}"
+    "github.com/gin-gonic/gin"
 )
 
 type {{.Name}} interface {
-
+    GinController
 }
 
-func New{{.Name}}(service services.{{.Service.Name}}) {{.Name}} {
+func New{{.Name}}(serviceProvider services.Provider) {{.Name}} {
 	return &{{.ImpName}}{
-		{{.Service.ImpName}}: service,
+		{{.Service.ImpName}}: serviceProvider.{{.Service.Name}}(),
 	}
 }
 
 type {{.ImpName}} struct {
+    BaseController
 	{{.Service.ImpName}} services.{{.Service.Name}}
+}
+
+
+func (c *{{.ImpName}}) Register( r gin.IRouter) {
+
 }

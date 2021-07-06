@@ -7,7 +7,7 @@ import (
 {{end}}
 
 type {{.Name}} struct {
-    {{range .Fields}}{{.Name}} {{.Type}} `gorm:"column:{{.ColumnName}}{{if .IsPrimaryKey}};primary_key{{end}}"`
+    {{range .Fields}}{{.Name}} {{.Type}} `gorm:"column:{{.ColumnName}}{{if .IsPrimaryKey}};primaryKey{{end}}"`
     {{end}}
 }
 

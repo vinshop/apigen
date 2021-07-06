@@ -110,7 +110,7 @@ func (g *Generator) exec() error {
 	if err := g.generateTemplate(repoTemplate, g.RepoFolder, fileName, repo); err != nil {
 		return err
 	}
-
+	//
 	service := repo.Service()
 	if err := g.generateTemplate(serviceTemplate, g.ServiceFolder, fileName, service); err != nil {
 		return err
@@ -131,7 +131,7 @@ func (g *Generator) exec() error {
 		return err
 	}
 
-	g.format()
+	//g.format()
 	return nil
 }
 
@@ -286,10 +286,8 @@ func GetGoDataType(mysqlType, isNullable string) string {
 	switch mysqlType {
 	case "varchar", "longtext", "text", "json":
 		return "string"
-	case "smallint", "int", "bigint", "timestamp":
+	case "smallint", "int", "bigint", "timestamp", "tinyint":
 		return "int64"
-	case "tinyint":
-		return "bool"
 	case "decimal":
 		return "float64"
 	case "date", "datetime":
