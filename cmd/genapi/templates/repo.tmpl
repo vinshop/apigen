@@ -7,6 +7,7 @@ import (
 )
 
 type {{.Name}} interface {
+    BaseRepository
     FindOne(ctx context.Context, model *models.{{.Model.Name}}, preloads ...string) error
     FindMany(ctx context.Context, where map[string]interface{}, page int64, limit int64, order string, preload ...string) (int64, []*models.{{.Model.Name}}, error)
     Create(ctx context.Context, model *models.{{.Model.Name}}) error
@@ -16,23 +17,12 @@ type {{.Name}} interface {
 
 func New{{.Name}}(db *gorm.DB) {{.Name}} {
     return &{{.ImpName}} {
-        db: db,
+        baseRepository{db},
     }
 }
 
 type {{.ImpName}} struct {
-    db *gorm.DB
-}
-
-func (r *{{.ImpName}}) getDB(ctx context.Context) *gorm.DB {
-    if ctx == nil {
-        return r.db
-    }
-    db, ok := ctx.Value("db").(*gorm.DB)
-    if !ok || db == nil {
-        return r.db
-    }
-    return db
+    baseRepository
 }
 
 func (r *{{.ImpName}}) preloads(db *gorm.DB, preloads ...string) *gorm.DB {
@@ -43,25 +33,25 @@ func (r *{{.ImpName}}) preloads(db *gorm.DB, preloads ...string) *gorm.DB {
 }
 
 func (r *{{.ImpName}}) FindOne(ctx context.Context, model *models.{{.Model.Name}}, preloads ...string) error {
-    return r.preloads(r.getDB(ctx), preloads...).First(model).Error
+    return r.preloads(r.GetDB(ctx), preloads...).Where("id = ?", model.ID).First(model).Error
 }
 
 func (r *{{.ImpName}}) Create(ctx context.Context, model *models.{{.Model.Name}}) error {
-    return r.getDB(ctx).Create(model).Error
+    return r.GetDB(ctx).Create(model).Error
 }
 
 func (r *{{.ImpName}}) Update(ctx context.Context, model *models.{{.Model.Name}}) error {
-    return r.getDB(ctx).Model(model).Update(model).Error
+    return r.GetDB(ctx).Model(model).Update(model).Error
 }
 
 func (r *{{.ImpName}}) Delete(ctx context.Context, model *models.{{.Model.Name}}) error {
-    return r.getDB(ctx).Delete(model).Error
+    return r.GetDB(ctx).Delete(model).Error
 }
 
 func (r *{{.ImpName}}) FindMany(ctx context.Context, where map[string]interface{}, page int64, limit int64, order string, preloads ...string) (int64, []*models.{{.Model.Name}}, error) {
     var result []*models.{{.Model.Name}}
 
-    db := r.getDB(ctx).Model(&models.{{.Model.Name}}{})
+    db := r.GetDB(ctx).Model(&models.{{.Model.Name}}{})
 
     for k, v := range where {
         db = db.Where(k, v)
