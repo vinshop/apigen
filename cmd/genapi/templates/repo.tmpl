@@ -9,7 +9,7 @@ import (
 type {{.Name}} interface {
     BaseRepository
     FindOne(ctx context.Context, model *models.{{.Model.Name}}, preloads ...string) error
-    FindMany(ctx context.Context, where map[string]interface{}, page int64, limit int64, order string, preload ...string) (int64, []*models.{{.Model.Name}}, error)
+    FindMany(ctx context.Context, where map[interface{}]interface{}, op *PaginationOption, preloads ...string) ([]*models.{{.Model.Name}}, error)
     Create(ctx context.Context, model *models.{{.Model.Name}}) error
     Update(ctx context.Context, model *models.{{.Model.Name}}) error
     Delete(ctx context.Context, model *models.{{.Model.Name}}) error
@@ -36,7 +36,7 @@ func (r *{{.ImpName}}) FindOne(ctx context.Context, model *models.{{.Model.Name}
     if model.ID == 0 {
 		return gorm.ErrRecordNotFound
 	}
-    return r.preloads(r.getDB(ctx), preloads...).First(model).Error
+    return r.preloads(r.GetDB(ctx), preloads...).First(model).Error
 }
 
 func (r *{{.ImpName}}) Create(ctx context.Context, model *models.{{.Model.Name}}) error {
@@ -51,29 +51,24 @@ func (r *{{.ImpName}}) Delete(ctx context.Context, model *models.{{.Model.Name}}
     return r.GetDB(ctx).Delete(model).Error
 }
 
-func (r *{{.ImpName}}) FindMany(ctx context.Context, where map[string]interface{}, page int64, limit int64, order string, preloads ...string) (int64, []*models.{{.Model.Name}}, error) {
-    var result []*models.{{.Model.Name}}
+func (r *{{.ImpName}}) FindMany(ctx context.Context, where map[interface{}]interface{}, op *PaginationOption, preloads ...string) ([]*models.{{.Model.Name}}, error) {
+	var result []*models.{{.Model.Name}}
 
-    db := r.GetDB(ctx).Model(&models.{{.Model.Name}}{})
+	db := r.GetDB(ctx).Model(&models.{{.Model.Name}}{})
 
-    for k, v := range where {
-        db = db.Where(k, v)
-    }
+	for k, v := range where {
+		db = db.Where(k, v)
+	}
 
-    var total int64
+	db.Count(&op.Total)
 
-    if err := db.Count(&total).Error; err != nil {
-        return -1, nil, err
-    }
+	db = op.Apply(db)
 
-    db = r.preloads(db, preloads...)
+	db = r.preloads(db, preloads...)
 
-    if err := db.Find(&result).Offset((page - 1) * limit).Limit(limit).Order(order).Error; err != nil {
-        return -1, nil, err
-    }
-    return total, result, nil
-
-
-
-
+	if err := db.Find(&result).Error; err != nil {
+		return nil, err
+	}
+	op.CalcTotalPage()
+	return result, nil
 }
